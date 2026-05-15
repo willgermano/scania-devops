@@ -1,0 +1,131 @@
+# Define o nome que aparecera na aba Actions do GitHub.
+name: CI Docker
+
+# Define quando a pipeline sera executada.
+on:
+  # Executa a pipeline quando houver push nas branches configuradas.
+  push:
+    # Lista as branches que disparam a pipeline em eventos de push.
+    branches:
+      # Executa quando o push for feito na branch main.
+      - main
+      # Executa quando o push for feito na branch master.
+      - master
+  # Executa a pipeline quando houver pull request para as branches configuradas.
+  pull_request:
+    # Lista as branches de destino que disparam a pipeline em pull requests.
+    branches:
+      # Executa quando o pull request apontar para main.
+      - main
+      # Executa quando o pull request apontar para master.
+      - master
+  # Permite executar a pipeline manualmente pela tela Actions do GitHub.
+  workflow_dispatch:
+
+# Define variaveis reutilizadas pelos jobs da pipeline.
+env:
+  # Caminho do arquivo .csproj da API .NET dentro do repositorio.
+  API_PROJECT: TesteDocker2/TesteDocker2/TesteDocker2.csproj
+  # Caminho do Dockerfile da API .NET dentro do repositorio.
+  API_DOCKERFILE: TesteDocker2/TesteDocker2/Dockerfile
+  # Pasta usada como contexto do docker build da API.
+  API_CONTEXT: TesteDocker2/TesteDocker2
+  # Nome da imagem Docker da API criada durante a pipeline.
+  API_IMAGE: testedocker2-api:ci
+  # Pasta raiz do projeto Angular dentro do repositorio.
+  FRONTEND_PATH: frontend-teste-docker2
+  # Caminho do Dockerfile do frontend Angular dentro do repositorio.
+  FRONTEND_DOCKERFILE: frontend-teste-docker2/Dockerfile
+  # Nome da imagem Docker do frontend criada durante a pipeline.
+  FRONTEND_IMAGE: frontend-teste-docker2:ci
+
+# Agrupa os jobs que serao executados pela pipeline.
+jobs:
+  # Job responsavel por validar, publicar e criar a imagem Docker da API .NET.
+  build-api:
+    # Nome amigavel exibido no GitHub Actions para o job da API.
+    name: Build API .NET 10
+    # Define que o job sera executado em uma maquina Linux hospedada pelo GitHub.
+    runs-on: ubuntu-latest
+
+    # Lista as etapas executadas pelo job da API.
+    steps:
+      # Baixa o codigo do repositorio para dentro da maquina do GitHub Actions.
+      - name: Checkout repository
+        # Usa a action oficial do GitHub para fazer checkout do codigo.
+        uses: actions/checkout@v4
+
+      # Instala/configura o SDK do .NET 10 na maquina do GitHub Actions.
+      - name: Setup .NET 10 SDK
+        # Usa a action oficial da Microsoft/GitHub para instalar o SDK .NET.
+        uses: actions/setup-dotnet@v4
+        # Configura os parametros da action de setup do .NET.
+        with:
+          # Solicita a versao 10.0.x mais recente disponivel do SDK .NET.
+          dotnet-version: 10.0.x
+
+      # Restaura os pacotes NuGet usados pela API.
+      - name: Restore API dependencies
+        # Executa dotnet restore usando o caminho do .csproj definido em API_PROJECT.
+        run: dotnet restore "${{ env.API_PROJECT }}"
+
+      # Compila a API em modo Release.
+      - name: Build API
+        # Executa dotnet build sem restaurar de novo, pois o restore ja foi feito na etapa anterior.
+        run: dotnet build "${{ env.API_PROJECT }}" --configuration Release --no-restore
+
+      # Publica a API na pasta que o Dockerfile espera copiar para dentro da imagem.
+      - name: Publish API for Docker image
+        # Executa dotnet publish em Release, gerando os arquivos finais em bin/publish dentro do contexto Docker da API.
+        run: dotnet publish "${{ env.API_PROJECT }}" --configuration Release --output "${{ env.API_CONTEXT }}/bin/publish" --runtime linux-x64 --self-contained false
+
+      # Cria a imagem Docker da API para validar que o Dockerfile funciona.
+      - name: Build API Docker image
+        # Executa docker build usando o Dockerfile, o contexto e o nome de imagem definidos nas variaveis do workflow.
+        run: docker build --tag "${{ env.API_IMAGE }}" --file "${{ env.API_DOCKERFILE }}" "${{ env.API_CONTEXT }}"
+
+  # Job responsavel por instalar, compilar e criar a imagem Docker do frontend Angular.
+  build-frontend:
+    # Nome amigavel exibido no GitHub Actions para o job do frontend.
+    name: Build Angular frontend
+    # Define que o job sera executado em uma maquina Linux hospedada pelo GitHub.
+    runs-on: ubuntu-latest
+
+    # Lista as etapas executadas pelo job do frontend.
+    steps:
+      # Baixa o codigo do repositorio para dentro da maquina do GitHub Actions.
+      - name: Checkout repository
+        # Usa a action oficial do GitHub para fazer checkout do codigo.
+        uses: actions/checkout@v4
+
+      # Instala/configura o Node.js necessario para o Angular 22.
+      - name: Setup Node 24
+        # Usa a action oficial do GitHub para instalar Node.js.
+        uses: actions/setup-node@v4
+        # Configura os parametros da action de setup do Node.js.
+        with:
+          # Define a versao do Node.js compativel com Angular 22.
+          node-version: 24.13.1
+          # Habilita cache de dependencias npm para acelerar proximas execucoes.
+          cache: npm
+          # Informa qual package-lock.json deve ser usado como chave do cache npm.
+          cache-dependency-path: ${{ env.FRONTEND_PATH }}/package-lock.json
+
+      # Instala as dependencias do frontend exatamente como definido no package-lock.json.
+      - name: Install frontend dependencies
+        # Executa o comando dentro da pasta do projeto Angular.
+        working-directory: ${{ env.FRONTEND_PATH }}
+        # Usa npm ci para instalacao limpa e reprodutivel em ambiente de CI.
+        run: npm ci
+
+      # Compila o frontend Angular.
+      - name: Build frontend
+        # Executa o comando dentro da pasta do projeto Angular.
+        working-directory: ${{ env.FRONTEND_PATH }}
+        # Executa o script de build definido no package.json do frontend.
+        run: npm run build
+
+      # Cria a imagem Docker do frontend para validar que o Dockerfile funciona.
+      - name: Build frontend Docker image
+        # Executa docker build usando o Dockerfile, o contexto e o nome de imagem definidos nas variaveis do workflow.
+        run: docker build --tag "${{ env.FRONTEND_IMAGE }}" --file "${{ env.FRONTEND_DOCKERFILE }}" "${{ env.FRONTEND_PATH }}"
