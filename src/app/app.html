@@ -1,0 +1,68 @@
+<main class="page-shell">
+  <section class="content">
+    <header class="header">
+      <div>
+        <p class="eyebrow">TesteDocker2 API</p>
+        <h1>WeatherForecast</h1>
+        <p class="subtitle">
+          Dados carregados do endpoint Docker em
+          <code>{{ sourceEndpoint }}</code>
+        </p>
+      </div>
+
+      <button type="button" class="refresh-button" (click)="load()" [disabled]="loading()">
+        Atualizar
+      </button>
+    </header>
+
+    @if (loading()) {
+      <div class="state-panel">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Carregando previsoes...</p>
+      </div>
+    } @else if (error()) {
+      <div class="state-panel error-panel">
+        <p>{{ error() }}</p>
+        <button type="button" class="secondary-button" (click)="load()">Tentar novamente</button>
+      </div>
+    } @else {
+      <div class="summary-row" aria-label="Resumo das previsoes">
+        <div>
+          <span class="summary-value">{{ forecasts().length }}</span>
+          <span class="summary-label">registros</span>
+        </div>
+        <div>
+          <span class="summary-value">8082</span>
+          <span class="summary-label">porta local</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Temperatura C</th>
+              <th>Temperatura F</th>
+              <th>Resumo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (forecast of forecasts(); track forecast.date) {
+              <tr>
+                <td>{{ forecast.date }}</td>
+                <td>{{ forecast.temperatureC }}</td>
+                <td>{{ forecast.temperatureF }}</td>
+                <td>{{ forecast.summary }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="empty-cell">Nenhum dado retornado pela API.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</main>
